@@ -3,9 +3,9 @@
 **Silune — your media, after dark.**
 
 Silune is an unofficial fork of the Silo Android phone and TV clients. Its
-fork changes are an OLED-focused visual identity and an HEVC compatibility
-patch for NVIDIA Shield setups. The rest of the client feature set comes
-from Silo.
+fork changes are an OLED-focused visual identity, [night mode](playback/night-mode.md)
+for local playback, and an HEVC compatibility patch for NVIDIA Shield setups.
+The rest of the client feature set comes from Silo.
 
 The visual identity uses a purple split-prism mark, charcoal launcher
 backgrounds, and matching wordmarks and TV artwork. The playback patch is
@@ -179,3 +179,38 @@ compilation. Publication requires the existing tag to match the tested source;
 it never retargets a built APK to whatever happens to be on `main` later.
 The release call uses `--verify-tag` and omits `--target`, which is ignored for
 existing tags but can still trigger GitHub's workflow-file permission guard.
+
+## Personal fork upstream sync
+
+`kyle95wm/silune-android` has a separate **Daily upstream sync** workflow in
+`.github/workflows/daily-upstream-sync.yml`. Once this file is committed and
+pushed to `main`, enable the workflow in GitHub Actions if GitHub requires it
+for the fork. It runs daily at 15:37 UTC (11:37 Toronto during daylight saving
+time; 10:37 during standard time), or manually with **Run workflow**.
+
+It fetches the exact current `SiluneOSS/silune-android` main commit and merges
+it locally. Before pushing, it runs the fork's playback guards against the
+merged source:
+
+- `scripts/check-hevc-override.py` verifies the hardware HEVC decoder preference,
+  default-on level-limit switch, capability reporting, saved preference,
+  startup binding, and both settings controls.
+- `scripts/check-night-mode.py` verifies the Plezy effect parameters and fallback,
+  PCM/tunneling/offload handling, player lifecycle, saved preference, and both
+  player toggles. It fingerprints the two fork-owned audio implementation
+  files, ignoring comments and formatting, and checks their integration points.
+
+Changes to protected code require manual review, even if Git merges them
+cleanly. Update a fingerprint only after reviewing an intentional change.
+
+Conflicts or a failed guard leave the remote main branch unchanged. A regular
+push with the built-in `GITHUB_TOKEN` also rejects concurrent changes to main;
+the workflow never force-pushes. Resolve conflicts locally while preserving the
+HEVC patch, or review an intentional refactor and update the guard, then run the
+workflow again. No signing secrets or personal token are needed. No pull
+request is created.
+
+This workflow only merges source; it does not build or publish APKs. GitHub
+suppresses push-triggered CI for these token-authored merges, so run release
+validation before distributing builds. The existing **Silune Daily** release
+workflow remains restricted to `SiluneOSS/silune-android`.

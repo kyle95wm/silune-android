@@ -20,6 +20,17 @@ This repository contains only the Silo Android clients. Shared Kotlin logic live
 - `./gradlew :androidTvApp:installDebug` installs the TV app on a connected emulator or device.
 - `./gradlew test` runs available Kotlin/JUnit tests.
 
+## Upstream merges
+
+Preserve the fork's HEVC override patch when merging `SiluneOSS/silune-android`:
+the hardware HEVC decoder preference and default-on **Ignore HEVC Level Limits**
+switch, including capability reporting and phone/TV settings. Run
+`python3 scripts/check-hevc-override.py` before updating the fork branch. If it
+fails, review the merge and retain the patch; do not bypass the guard.
+Preserve night mode too: run `python3 scripts/check-night-mode.py` to verify
+Plezy's effect parameters, PCM output handling, saved preference and both
+player toggles. Both guards must pass before an automated upstream push.
+
 ## Coding Style & Naming Conventions
 
 Use Kotlin 2.1, Java 21 targets, and Compose idioms. The Silo package root is `org.siloserver.silo`. Both the phone and TV apps share a single `applicationId`, `org.silune.app`, so they publish as one Google Play listing (Play routes each build by manifest feature filtering — the phone build requires `android.hardware.touchscreen`; the TV build requires `android.software.leanback`). The Gradle `namespace` stays distinct per module (`org.siloserver.silo.android`, `org.siloserver.silo.tv`) so generated `R`/`BuildConfig` classes don't collide. The two artifacts use distinct versionCodes (`base*2` for phone, `base*2+1` for TV), so each release bumps both by 2 with no reuse. `scripts/release-version.py` derives the base from the store version and a repository-wide build number (`base = 100_000_000 + (major*10000 + minor*100 + patch)*1000 + build`), so a version ships as many tester builds as it needs before its store release. See `docs/releasing.md`. This repo is on the full Silo namespace cut, so do not add legacy package IDs, legacy storage names, or old-brand symbols. Kotlin classes and composables use `PascalCase`; functions and properties use `camelCase`.

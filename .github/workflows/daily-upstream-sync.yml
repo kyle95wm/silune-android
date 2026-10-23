@@ -1,0 +1,64 @@
+name: Daily upstream sync
+
+on:
+  schedule:
+    - cron: '37 15 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # SiluneOSS already merges upstream in fork-daily-release.yml.
+    if: github.repository == 'kyle95wm/silune-android' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out fork main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare merge and verify fork playback features
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Run the fork's guard, even if an upstream merge changes tooling.
+          cp scripts/check-hevc-override.py scripts/check-night-mode.py "${RUNNER_TEMP}/"
+          python3 "${RUNNER_TEMP}/check-hevc-override.py" --root "${GITHUB_WORKSPACE}"
+          python3 "${RUNNER_TEMP}/check-night-mode.py" --root "${GITHUB_WORKSPACE}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch --no-tags https://github.com/SiluneOSS/silune-android.git main
+          upstream_sha="$(git rev-parse FETCH_HEAD)"
+          git merge --no-edit "${upstream_sha}" \
+            -m 'chore(sync): merge Silune Android upstream'
+          python3 "${RUNNER_TEMP}/check-hevc-override.py" --root "${GITHUB_WORKSPACE}"
+          python3 "${RUNNER_TEMP}/check-night-mode.py" --root "${GITHUB_WORKSPACE}"
+          echo "UPSTREAM_SHA=${upstream_sha}" >> "${GITHUB_ENV}"
+
+      - name: Push the verified merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A normal push rejects concurrent changes; never force-push main.
+          auth="$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 -w0)"
+          echo "::add-mask::${auth}"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}" \
+            push origin HEAD:refs/heads/main
+          {
+            echo "Merged SiluneOSS/silune-android at ${UPSTREAM_SHA}."
+            echo "Fork main is now $(git rev-parse HEAD)."
+            echo 'Verified the HEVC override and night mode before pushing.'
+          } >> "${GITHUB_STEP_SUMMARY}"
