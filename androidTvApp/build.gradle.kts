@@ -1,6 +1,3 @@
-import com.android.build.api.variant.HasHostTestsBuilder
-import com.android.build.api.variant.HostTestBuilder
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.multiplatform)
@@ -296,25 +293,8 @@ android {
     }
 }
 
-// The Robolectric suites need the test ComponentActivity in the merged
-// manifest, and that dependency is deliberately debug-only so it can never
-// reach the release APK. The consequence is that those same tests cannot run
-// against the release variant at all — they fail resolving the activity rather
-// than telling you anything about release.
-//
-// Running them once, on debug, is the whole of their value: unit tests are not
-// minified, so the release variant exercises no different code. This was found
-// by a flaky test in another module aborting `gradlew test` before the release
-// task was ever reached.
-androidComponents {
-    beforeVariants(selector().withBuildType("release")) { variant ->
-        // Host-tests API rather than `variant.enableUnitTest`, which AGP 8.10.1
-        // deprecates and AGP 9.0 removes.
-        (variant as HasHostTestsBuilder)
-            .hostTests[HostTestBuilder.UNIT_TEST_TYPE]
-            ?.enable = false
-    }
-}
+// Release Compose tests register their host in Robolectric's PackageManager,
+// keeping test activities out of the release APK.
 
 dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)

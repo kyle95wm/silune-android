@@ -34,6 +34,8 @@ captures/
 google-services.json
 *.jks
 *.keystore
+*.p12
+*.pfx
 
 # Local agent/tooling state
 /.agents/

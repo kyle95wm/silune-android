@@ -28,6 +28,7 @@ import io.ktor.client.engine.mock.respondBadRequest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.siloserver.silo.tv.testing.ComposeActivityRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -70,7 +71,10 @@ import org.siloserver.silo.tv.ui.theme.SiloTvTheme
 // The reference TV surface: 1920x1080 at 320dpi.
 @Config(sdk = [35], application = Application::class, qualifiers = "w960dp-h540dp-xhdpi")
 class TvLoginScreenNetworkSignInTest {
-    @get:Rule
+    @get:Rule(order = 0)
+    val activityRule = ComposeActivityRule()
+
+    @get:Rule(order = 1)
     val composeRule = createComposeRule()
 
     @Test

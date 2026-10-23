@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
+import org.siloserver.silo.tv.testing.ComposeActivityRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,7 +23,10 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], application = Application::class)
 @OptIn(ExperimentalTvMaterial3Api::class)
 class TvControlSemanticsTest {
-    @get:Rule
+    @get:Rule(order = 0)
+    val activityRule = ComposeActivityRule()
+
+    @get:Rule(order = 1)
     val composeRule = createComposeRule()
 
     @Test

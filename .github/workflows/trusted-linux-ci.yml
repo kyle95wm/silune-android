@@ -265,11 +265,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # CI exercises debug variants; release.yml runs the release variant's
-          # host tests (release behavior and BuildConfig values) before Play.
+          # Validate release behavior and BuildConfig values on every CI run.
           ./gradlew \
             -Dorg.gradle.jvmargs="-Xmx4g -Dfile.encoding=UTF-8" \
-            testDebugUnitTest \
+            testReleaseUnitTest \
             "${SILO_CI_CACHE_FLAG}" "${SILO_CI_PARALLEL_FLAG}" "${SILO_CI_CONFIGURATION_FLAG}" \
             --max-workers=2
 
@@ -277,7 +276,7 @@ jobs:
           import json
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          reports = sorted(Path('.').glob('*/build/test-results/testDebugUnitTest/TEST-*.xml'))
+          reports = sorted(Path('.').glob('*/build/test-results/testReleaseUnitTest/TEST-*.xml'))
           totals = dict.fromkeys(('tests', 'failures', 'errors', 'skipped'), 0)
           if not reports:
               raise SystemExit('No JUnit reports were produced')

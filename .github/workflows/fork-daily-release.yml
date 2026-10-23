@@ -163,7 +163,7 @@ jobs:
           SILO_RELEASE_KEY_PASSWORD: ${{ secrets.SILO_RELEASE_KEY_PASSWORD }}
         run: |
           ./gradlew \
-            test \
+            testReleaseUnitTest \
             :androidApp:lintRelease :androidTvApp:lintRelease \
             :androidApp:assembleRelease :androidTvApp:assembleRelease \
             -Pandroid.r8.maxWorkers=1 --max-workers=2 --no-parallel --console=plain

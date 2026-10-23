@@ -14,11 +14,13 @@ This repository contains only the Silo Android clients. Shared Kotlin logic live
 
 ## Build, Test, and Development Commands
 
-- `./gradlew :androidApp:assembleDebug` builds the Android phone APK.
-- `./gradlew :androidTvApp:assembleDebug` builds the Android TV APK.
-- `./gradlew :androidApp:installDebug` installs the phone app on a connected emulator or device.
-- `./gradlew :androidTvApp:installDebug` installs the TV app on a connected emulator or device.
-- `./gradlew test` runs available Kotlin/JUnit tests.
+Always compile release builds for this project, including local validation. Do not use debug builds.
+
+- `./gradlew :androidApp:assembleRelease` builds the Android phone APK.
+- `./gradlew :androidTvApp:assembleRelease` builds the Android TV APK.
+- `./gradlew :androidApp:installRelease` installs the phone app on a connected emulator or device.
+- `./gradlew :androidTvApp:installRelease` installs the TV app on a connected emulator or device.
+- `./gradlew testReleaseUnitTest` runs available Kotlin/JUnit tests for release builds.
 
 ## Upstream merges
 

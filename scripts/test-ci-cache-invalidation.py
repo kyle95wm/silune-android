@@ -13,7 +13,7 @@ logs.mkdir(parents=True, exist_ok=True)
 probes = [
     (
         "sibling-manifest",
-        ":androidApp:testDebugUnitTest",
+        ":androidApp:testReleaseUnitTest",
         "org.siloserver.silo.android.auth.NativeSignInManifestTest",
         "tvNeverClaimsTheAppRedirect",
         root / "androidTvApp/src/androidMain/AndroidManifest.xml",
@@ -21,7 +21,7 @@ probes = [
     ),
     (
         "source-comment",
-        ":shared:testDebugUnitTest",
+        ":shared:testReleaseUnitTest",
         "org.siloserver.silo.network.apiv2.ApiV2NoV1TransportSourceTest",
         "noV1PathLiteralUnderApiV2Package",
         next((root / "shared/src/commonMain/kotlin/org/siloserver/silo/network/apiv2").glob("*.kt")),
@@ -36,7 +36,7 @@ for name, task, test, method, source, mutate in probes:
         "--build-cache", "--max-workers=2", "--console=plain",
         '-Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8',
     ]
-    report = root / task.split(":")[1] / "build/test-results/testDebugUnitTest" / f"TEST-{test}.xml"
+    report = root / task.split(":")[1] / "build/test-results/testReleaseUnitTest" / f"TEST-{test}.xml"
 
     def run(label):
         result = subprocess.run(command, cwd=root, capture_output=True, text=True)

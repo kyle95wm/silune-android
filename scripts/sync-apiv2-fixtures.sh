@@ -113,7 +113,7 @@ real v2 router (make apiv2-fixtures) and validates the bodies against the
 committed OpenAPI artifact. Only the fixtures the Android pilot consumes are
 vendored here, and index.json is filtered to those entries; the OpenAPI
 document itself is never vendored. Re-vendor with
-scripts/sync-apiv2-fixtures.sh <server checkout> and run :shared:testDebugUnitTest.
+scripts/sync-apiv2-fixtures.sh <server checkout> and run :shared:testReleaseUnitTest.
 
 ApiV2ContractTest decodes every body here with the production SiloJson.
 EOS
