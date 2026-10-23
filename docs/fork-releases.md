@@ -16,23 +16,23 @@ hardware decoder's actual capabilities. Existing saved numeric levels become
 On; a saved Off stays Off.
 
 The release workflow publishes optimized, signed phone and TV APKs on
-[GitHub Releases](https://github.com/SiluneOSS/silune-android/releases).
+[GitHub Releases](https://github.com/kyle95wm/silune-android/releases).
 
 ## Schedule and manual builds
 
-The **Silune Daily** workflow runs every day at 15:37 UTC:
-08:37 Pacific during daylight saving time and 07:37 during standard time.
-GitHub can delay scheduled jobs. The workflow must stay on the default branch,
-`main`. It can also be started from Actions → Silune Daily →
-Run workflow, selecting `main`. Leave **Force build** unchecked to use the same
+The **Silune Release** workflow runs on pushes to `main` and after a successful
+**Daily upstream sync** run. The sync runs at 15:37 UTC: 11:37 Toronto during
+daylight saving time and 10:37 during standard time. GitHub can delay scheduled
+jobs. Both workflows must stay on the default branch, `main`.
+It can also be started from Actions → Silune Release → Run workflow, selecting
+`main`. Leave **Force build** unchecked to use the same
 change check, or check it to compile and publish even when nothing changed.
 
-Each run uses GitHub's branch-merge API to merge the exact current
-`Silo-Server/silo-android` `main` commit into `SiluneOSS/silune-android` `main`.
-The repository is a direct fork of official Silo Android. This API merge requires
-both repositories to share a GitHub fork network. The merge preserves the fork's
-commits and fails on conflicts, without resetting
-or force-pushing the branch. After syncing, it compares the merged source's Git
+The separate sync workflow merges `SiluneOSS/silune-android` into this fork
+and checks the HEVC and night-mode guards before pushing. A failed sync does
+not start a release. The release workflow checks out trusted `main`, runs both
+guards again, and records the upstream ancestor included in that source.
+It compares the source's Git
 tree (all tracked file contents) with the source tag of the most recently
 published complete Silune release. Matching contents skip compilation
 and publishing, even if commit history changed. The daily sync still completes,
@@ -43,12 +43,11 @@ Changes in this fork also trigger a build, even when upstream is unchanged.
 API errors fail the check instead of silently skipping it. This comparison
 includes documentation and workflow files as well as app code.
 
-When a build is needed, it reserves the dated tag while that commit is the
-head of `main`, then checks out the exact tagged commit and runs
-release unit tests and lint, and builds both APKs with JDK 21 and R8 optimization.
-The inherited Google Play and Discord workflows are disabled in the fork's
-Actions settings; their source files stay unchanged to reduce merge conflicts.
-The fork workflow never invokes Play publishing or Discord posting.
+When a build is needed, it reserves the dated source tag, then checks out the
+exact tagged commit and runs release unit tests and lint, and builds both APKs
+with JDK 21 and R8 optimization on GitHub-hosted runners. Compilation runs in
+GitHub by default. The signing secrets are available only to the build job.
+The release workflow never invokes Google Play publishing or Discord posting.
 
 Each dated release includes:
 
@@ -61,11 +60,11 @@ Each dated release includes:
 Each successful daily build is published as a regular GitHub release and
 explicitly marked **Latest**. These permanent links follow that release:
 
-- [Latest phone APK](https://github.com/SiluneOSS/silune-android/releases/latest/download/silune-phone.apk)
-- [Latest TV APK](https://github.com/SiluneOSS/silune-android/releases/latest/download/silune-tv.apk)
+- [Latest phone APK](https://github.com/kyle95wm/silune-android/releases/latest/download/silune-phone.apk)
+- [Latest TV APK](https://github.com/kyle95wm/silune-android/releases/latest/download/silune-tv.apk)
 
 The APKs are optimized release builds. Nothing is published until signature checks pass and downloaded
-release assets match the locally calculated checksums. A failed run leaves the
+release assets match the runner's calculated checksums. A failed run leaves the
 previous public releases intact. A failed upload can leave an unpublished draft;
 rerunning the failed publish job completes it without replacing a public release.
 Published tags and assets are never overwritten by this workflow.
@@ -89,9 +88,10 @@ private backup of the key and passwords outside Git. Signing material is decoded
 only on the temporary build runner and removed after the build. The public
 certificate fingerprint can be checked with `apksigner verify --print-certs`.
 
-Both apps use the Silune application ID `org.silune.app`, so they install
-separately from Silo and earlier forks with different application IDs. Later
-Silune builds signed with the same persistent release key update in place.
+Both apps use the Silune application ID `org.silune.app`. Builds signed with
+this fork's persistent key update this fork's installed app in place. Switching
+from another signing key requires uninstalling the existing app, clearing its
+local data. Keep the same key for subsequent releases.
 
 The APK version, in-app version label, and GitHub release title preserve Silo's
 version and build number, then append the Silune build date:
@@ -140,14 +140,10 @@ The Silune artwork is licensed under AGPL-3.0-or-later.
 New releases use `silune-phone.apk` and `silune-tv.apk`. Permanent download URLs
 use those filenames once a Silune release is published. Previously published
 releases retain their original asset names; existing links using `prism-*`
-or earlier filenames will not follow new Silune releases. The repository is now
-`SiluneOSS/silune-android`; the persistent signing key is retained. Builds with
+or earlier filenames will not follow new Silune releases. This fork publishes
+from `kyle95wm/silune-android`; its persistent signing key is retained. Builds with
 the same application ID and signing key update in place with the matching phone
 or TV build.
-
-The local `unbranded` branch restores the original Silo name, artwork, notices,
-and logo sizing while retaining the fork's playback and release tooling.
-It is prepared for use after written trademark permission is received.
 
 ## Failures and maintenance
 
@@ -171,8 +167,10 @@ It is prepared for use after written trademark permission is received.
 No personal access token is stored by this automation. The built-in repository
 `GITHUB_TOKEN` performs fork synchronization and release publishing; signing
 secrets are supplied only to the build job. GitHub suppresses follow-on push
-workflows for changes made with this token, so the daily workflow performs its
-own validation rather than depending on a second CI run.
+workflows for changes made with this token, so a successful sync explicitly
+starts the release workflow through its `workflow_run` completion event. The
+release workflow accepts only this repository's main-branch sync and checks out
+trusted `main`; it does not build a pull request or consume its artifacts.
 
 Tag reservation avoids GitHub's workflow-scope guard when `main` advances during
 compilation. Publication requires the existing tag to match the tested source;
@@ -183,9 +181,7 @@ existing tags but can still trigger GitHub's workflow-file permission guard.
 ## Personal fork upstream sync
 
 `kyle95wm/silune-android` has a separate **Daily upstream sync** workflow in
-`.github/workflows/daily-upstream-sync.yml`. Once this file is committed and
-pushed to `main`, enable the workflow in GitHub Actions if GitHub requires it
-for the fork. It runs daily at 15:37 UTC (11:37 Toronto during daylight saving
+`.github/workflows/daily-upstream-sync.yml`. It runs daily at 15:37 UTC (11:37 Toronto during daylight saving
 time; 10:37 during standard time), or manually with **Run workflow**.
 
 It fetches the exact current `SiluneOSS/silune-android` main commit and merges
@@ -210,7 +206,8 @@ HEVC patch, or review an intentional refactor and update the guard, then run the
 workflow again. No signing secrets or personal token are needed. No pull
 request is created.
 
-This workflow only merges source; it does not build or publish APKs. GitHub
-suppresses push-triggered CI for these token-authored merges, so run release
-validation before distributing builds. The existing **Silune Daily** release
-workflow remains restricted to `SiluneOSS/silune-android`.
+This workflow only merges source. Its successful completion starts **Silune
+Release**, which runs release validation, builds and signs both APKs, and
+publishes a regular GitHub release marked Latest when source files changed.
+Unchanged source skips compilation and publication. Manual runs of the sync
+follow the same release path.

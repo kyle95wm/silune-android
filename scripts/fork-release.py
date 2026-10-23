@@ -94,12 +94,16 @@ def upstream_version(root, upstream_sha):
     return {"version": release_version.version_text(version), "build": build, "tag": tag}
 
 
-def metadata(now, run_number, source_sha, upstream_sha, reserved_tag=None, *, upstream):
+def metadata(now, run_number, source_sha, upstream_sha, reserved_tag=None, *, upstream,
+             repository="SiluneOSS/silune-android", upstream_repository="Silo-Server/silo-android"):
     if run_number < 1:
         raise ValueError("run number must be positive")
     for sha in (source_sha, upstream_sha):
         if not re.fullmatch(r"[0-9a-f]{40}", sha):
             raise ValueError("source commits must be full Git SHAs")
+    for repo in (repository, upstream_repository):
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+            raise ValueError("repository must be an owner/name pair")
     day = now.astimezone(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
     if reserved_tag:
         match = re.fullmatch(rf"daily-(\d{{4}}-\d{{2}}-\d{{2}})\.{run_number}", reserved_tag)
@@ -124,6 +128,8 @@ def metadata(now, run_number, source_sha, upstream_sha, reserved_tag=None, *, up
         "silune_date": silune_date,
         "run_number": run_number,
         "source_sha": source_sha,
+        "repository": repository,
+        "upstream_repository": upstream_repository,
         "upstream_checked_sha": upstream_sha,
         "built_at": now.isoformat(),
     }
@@ -133,7 +139,9 @@ def prepare():
     upstream = upstream_version(Path.cwd(), os.environ["UPSTREAM_SHA"])
     info = metadata(dt.datetime.now(dt.timezone.utc), int(os.environ["GITHUB_RUN_NUMBER"]),
                     os.environ["SOURCE_SHA"], os.environ["UPSTREAM_SHA"], os.environ.get("FORK_RELEASE_TAG"),
-                    upstream=upstream)
+                    upstream=upstream,
+                    repository=os.environ.get("GITHUB_REPOSITORY", "SiluneOSS/silune-android"),
+                    upstream_repository=os.environ.get("FORK_UPSTREAM_REPOSITORY", "Silo-Server/silo-android"))
     path = Path(os.environ["RUNNER_TEMP"]) / "fork-build-info.json"
     path.write_text(json.dumps(info, indent=2) + "\n")
     with open(os.environ["GITHUB_ENV"], "a") as out:
@@ -167,7 +175,14 @@ def package(root, info, out):
     (out / "RELEASE_NOTES.md").write_text(
         f"{info['title']}\n\n"
         "Unofficial, optimized release builds of Silune, a fork of the Silo Android clients. "
-        "Includes the fork's HEVC level override, defaulting to 6.2.\n\n"
+        "Includes Night mode and the default-on Ignore HEVC Level Limits switch.\n\n"
+        "### Night mode\n\n"
+        "Reduce the difference between quiet dialogue and loud scenes with Plezy's Android audio effects. "
+        "Off by default; saved locally for each server/profile on this device.\n\n"
+        "- Phone: player Settings → Audio & subtitles → Night mode.\n"
+        "- TV: player Audio → Night mode.\n"
+        "- Uses decoded PCM instead of encoded passthrough, including for surround sound. "
+        "Effect and multichannel availability depend on the device and output route.\n\n"
         f"Version: **{info['version_name']}**. Based on Silo `{info['upstream_version_tag']}` "
         "plus the upstream changes included in the source snapshot below. "
         "The Silune date uses Pacific time (MMDDYYYY).\n\n"
@@ -175,12 +190,12 @@ def package(root, info, out):
         "- `silune-tv.apk`: Android TV / Google TV.\n"
         "- Both APKs are universal and signed with the persistent release key.\n"
         "- These are optimized release APKs, published as regular GitHub releases.\n"
-        "- Latest phone APK: https://github.com/SiluneOSS/silune-android/releases/latest/download/silune-phone.apk\n"
-        "- Latest TV APK: https://github.com/SiluneOSS/silune-android/releases/latest/download/silune-tv.apk\n\n"
-        "Silune uses its own application ID and installs separately from Silo. "
-        "Later Silune builds signed with the same release key can update in place.\n\n"
-        f"Source: https://github.com/SiluneOSS/silune-android/tree/{info['source_sha']}\n\n"
-        f"Upstream checked: https://github.com/Silo-Server/silo-android/commit/{info['upstream_checked_sha']}\n\n"
+        f"- Latest phone APK: https://github.com/{info['repository']}/releases/latest/download/silune-phone.apk\n"
+        f"- Latest TV APK: https://github.com/{info['repository']}/releases/latest/download/silune-tv.apk\n\n"
+        "Both apps use `org.silune.app`. Updates require the same signing key and the matching phone or TV APK. "
+        "These releases retain this fork's persistent key.\n\n"
+        f"Source: https://github.com/{info['repository']}/tree/{info['source_sha']}\n\n"
+        f"Upstream included: https://github.com/{info['upstream_repository']}/commit/{info['upstream_checked_sha']}\n\n"
         "Verify downloads with `sha256sum --check SHA256SUMS`. "
         "Source code is available under AGPL-3.0-or-later; third-party notices remain in the repository.\n")
 

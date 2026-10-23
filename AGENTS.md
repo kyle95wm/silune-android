@@ -15,6 +15,9 @@ This repository contains only the Silo Android clients. Shared Kotlin logic live
 ## Build, Test, and Development Commands
 
 Always compile release builds for this project, including local validation. Do not use debug builds.
+Run Android compilation, lint, and unit tests on GitHub Actions by default.
+Use the **Silune Release** workflow to build, sign, and publish phone and TV APKs;
+use local builds only when requested or needed to diagnose a cloud build failure.
 
 - `./gradlew :androidApp:assembleRelease` builds the Android phone APK.
 - `./gradlew :androidTvApp:assembleRelease` builds the Android TV APK.

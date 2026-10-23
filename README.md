@@ -73,13 +73,13 @@ Android 7.0 and 7.1 (API 24/25) are supported on both phone and Android TV. Vide
 
 ## Install APKs
 
-Get Silune builds from this fork's [GitHub Releases](https://github.com/SiluneOSS/silune-android/releases).
+Get Silune builds from this fork's [GitHub Releases](https://github.com/kyle95wm/silune-android/releases).
 Choose the APK for your device:
 
 | Device | File | Latest download |
 | --- | --- | --- |
-| Android phone or tablet | `silune-phone.apk` | [Phone APK](https://github.com/SiluneOSS/silune-android/releases/latest/download/silune-phone.apk) |
-| NVIDIA Shield, Android TV, or Google TV | `silune-tv.apk` | [TV APK](https://github.com/SiluneOSS/silune-android/releases/latest/download/silune-tv.apk) |
+| Android phone or tablet | `silune-phone.apk` | [Phone APK](https://github.com/kyle95wm/silune-android/releases/latest/download/silune-phone.apk) |
+| NVIDIA Shield, Android TV, or Google TV | `silune-tv.apk` | [TV APK](https://github.com/kyle95wm/silune-android/releases/latest/download/silune-tv.apk) |
 
 These download links require a published Silune release marked **Latest**.
 Earlier releases keep their original names and assets. The old upstream
@@ -89,11 +89,12 @@ Sideload the matching APK, open Silune, enter your Silo server address, and sign
 in. Set up a new Silo server through its web interface before connecting a client.
 
 Silune retains the upstream application ID. Switching from an official Silo
-build or a locally debug-signed build to a SigmaStreams-signed release requires
+build signed with a different key to this fork's signed release requires
 uninstalling the previous app, which clears its local data. Later Silune releases
 with the same signing key update in place.
 
-The daily workflow syncs upstream and builds optimized, signed APKs when tracked
+GitHub Actions builds optimized, signed release APKs after main changes and
+successful daily upstream syncs. It publishes a GitHub release when tracked
 source files change. See [fork releases and signing](docs/fork-releases.md) for
 release timing, verification, build labels, and update details.
 

@@ -126,6 +126,30 @@ class ForkReleaseTest(unittest.TestCase):
                 self.assertEqual(digest, hashlib.sha256((out / name).read_bytes()).hexdigest())
             self.assertEqual(len((out / "SHA256SUMS").read_text().splitlines()), 3)
 
+    def test_release_links_and_provenance_follow_the_publishing_fork(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for module in ("androidApp", "androidTvApp"):
+                path = root / module / "build/outputs/apk/release" / f"{module}-universal-release.apk"
+                path.parent.mkdir(parents=True)
+                path.write_bytes(module.encode())
+            info = release.metadata(dt.datetime(2026, 10, 23, tzinfo=dt.timezone.utc), 1,
+                                    "a" * 40, "b" * 40, upstream=UPSTREAM,
+                                    repository="kyle95wm/silune-android",
+                                    upstream_repository="SiluneOSS/silune-android")
+            out = root / "dist"
+            release.package(root, info, out)
+            notes = (out / "RELEASE_NOTES.md").read_text()
+            self.assertIn("https://github.com/kyle95wm/silune-android/releases/latest/download/silune-tv.apk", notes)
+            self.assertIn(f"https://github.com/kyle95wm/silune-android/tree/{'a' * 40}", notes)
+            self.assertIn(f"https://github.com/SiluneOSS/silune-android/commit/{'b' * 40}", notes)
+            self.assertNotIn("github.com/SiluneOSS/silune-android/releases", notes)
+            self.assertIn("Off by default", notes)
+            self.assertNotIn("defaulting to 6.2", notes)
+            provenance = json.loads((out / "build-info.json").read_text())
+            self.assertEqual(provenance["repository"], "kyle95wm/silune-android")
+            self.assertEqual(provenance["upstream_repository"], "SiluneOSS/silune-android")
+
 
 class BuildDecisionTest(unittest.TestCase):
     source = "a" * 40

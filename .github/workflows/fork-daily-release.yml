@@ -1,8 +1,13 @@
-name: Silune Daily
+name: Silune Release
 
 on:
-  schedule:
-    - cron: '37 15 * * *' # 08:37 Pacific daylight time / 07:37 standard time
+  push:
+    branches: [main]
+  # GITHUB_TOKEN-authored sync pushes do not trigger push workflows.
+  workflow_run:
+    workflows: [Daily upstream sync]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       force_build:
@@ -22,40 +27,42 @@ defaults:
     shell: bash
 
 jobs:
-  sync:
-    if: github.repository == 'SiluneOSS/silune-android' && github.ref == 'refs/heads/main'
+  prepare:
+    if: >-
+      github.repository == 'kyle95wm/silune-android' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: write
     outputs:
-      source_sha: ${{ steps.sync.outputs.source_sha }}
-      upstream_sha: ${{ steps.sync.outputs.upstream_sha }}
+      source_sha: ${{ steps.snapshot.outputs.source_sha }}
+      upstream_sha: ${{ steps.snapshot.outputs.upstream_sha }}
       tag: ${{ steps.tag.outputs.tag }}
       should_build: ${{ steps.decision.outputs.should_build }}
     steps:
-      - name: Merge upstream into main
-        id: sync
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          upstream_sha="$(gh api repos/Silo-Server/silo-android/commits/main --jq .sha)"
-          # Merge the official source SHA explicitly rather than following
-          # an intermediate fork's main branch.
-          # Fork-network commits are addressable by SHA; conflicts leave main intact.
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/merges" \
-            -f base=main -f head="${upstream_sha}" \
-            -f commit_message="Merge Silo-Server/silo-android main"
-          source_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
-          echo "source_sha=${source_sha}" >> "${GITHUB_OUTPUT}"
-          echo "upstream_sha=${upstream_sha}" >> "${GITHUB_OUTPUT}"
-
-      - name: Check out the merged source for the build decision
+      - name: Check out trusted main for the release decision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ steps.sync.outputs.source_sha }}
+          ref: main
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Pin the source and verify playback guards
+        id: snapshot
+        run: |
+          set -euo pipefail
+          python3 scripts/check-hevc-override.py
+          python3 scripts/check-night-mode.py
+          git fetch --no-tags https://github.com/SiluneOSS/silune-android.git main
+          # Record the upstream ancestor actually included in this snapshot.
+          # A release does not merge newer upstream code; the guarded sync does.
+          upstream_sha="$(git merge-base HEAD FETCH_HEAD)"
+          echo "source_sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+          echo "upstream_sha=${upstream_sha}" >> "${GITHUB_OUTPUT}"
 
       - name: Check release tooling
         run: python3 scripts/test-fork-release.py
@@ -64,7 +71,7 @@ jobs:
         id: decision
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ steps.sync.outputs.source_sha }}
+          SOURCE_SHA: ${{ steps.snapshot.outputs.source_sha }}
           FORCE_BUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.force_build }}
         run: python3 scripts/fork-release.py decide
 
@@ -73,7 +80,7 @@ jobs:
         id: tag
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ steps.sync.outputs.source_sha }}
+          SOURCE_SHA: ${{ steps.snapshot.outputs.source_sha }}
         run: |
           set -euo pipefail
           day="$(TZ=America/Los_Angeles date +%Y-%m-%d)"
@@ -90,8 +97,8 @@ jobs:
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
 
   build:
-    needs: sync
-    if: needs.sync.outputs.should_build == 'true'
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     outputs:
@@ -107,10 +114,10 @@ jobs:
             exit 1
           fi
 
-      - name: Check out the merged commit
+      - name: Check out the pinned release commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ needs.sync.outputs.source_sha }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -143,9 +150,10 @@ jobs:
       - name: Stamp the fork build
         id: metadata
         env:
-          SOURCE_SHA: ${{ needs.sync.outputs.source_sha }}
-          UPSTREAM_SHA: ${{ needs.sync.outputs.upstream_sha }}
-          FORK_RELEASE_TAG: ${{ needs.sync.outputs.tag }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          UPSTREAM_SHA: ${{ needs.prepare.outputs.upstream_sha }}
+          FORK_RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          FORK_UPSTREAM_REPOSITORY: SiluneOSS/silune-android
         run: python3 scripts/fork-release.py prepare
 
       - name: Decode the persistent signing key
@@ -164,15 +172,23 @@ jobs:
         run: |
           ./gradlew \
             testReleaseUnitTest \
-            :androidApp:lintRelease :androidTvApp:lintRelease \
+            :android-shared:lintRelease :androidApp:lintRelease :androidTvApp:lintRelease \
             :androidApp:assembleRelease :androidTvApp:assembleRelease \
             -Pandroid.r8.maxWorkers=1 --max-workers=2 --no-parallel --console=plain
 
       - name: Verify and package both APKs
+        env:
+          # Public fingerprint of the persistent key used by the installed build.
+          SIGNING_CERT_SHA256: 52bb48644ed99cbb35849732e7cc9cfae5d91b1bc4f13b3c2e2ba2f01e16a5c6
         run: |
+          set -euo pipefail
           for module in androidApp androidTvApp; do
             "${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify --verbose --print-certs \
-              "${module}/build/outputs/apk/release/${module}-universal-release.apk"
+              "${module}/build/outputs/apk/release/${module}-universal-release.apk" \
+              > "${RUNNER_TEMP}/${module}-signature.txt"
+            cat "${RUNNER_TEMP}/${module}-signature.txt"
+            grep -Fx "Signer #1 certificate SHA-256 digest: ${SIGNING_CERT_SHA256}" \
+              "${RUNNER_TEMP}/${module}-signature.txt"
             test "$("${ANDROID_HOME}/cmdline-tools/latest/bin/apkanalyzer" manifest debuggable \
               "${module}/build/outputs/apk/release/${module}-universal-release.apk")" = false
           done
@@ -203,8 +219,8 @@ jobs:
         run: rm -f "${RUNNER_TEMP}/silo-release.jks"
 
   publish:
-    needs: [sync, build]
-    if: needs.sync.outputs.should_build == 'true'
+    needs: [prepare, build]
+    if: needs.prepare.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -222,7 +238,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.build.outputs.tag }}
           TITLE: ${{ needs.build.outputs.title }}
-          SOURCE_SHA: ${{ needs.sync.outputs.source_sha }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
         run: |
           set -euo pipefail
           (cd dist && sha256sum --check SHA256SUMS)
